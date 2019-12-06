@@ -1,6 +1,11 @@
-FROM alpine:latest as builder
+# Developer: GeekSaga <geeksaga@gmail.com>
+#
+# GitHub: https://github.com/geeksaga
 
-LABEL maintainer "GeekSaga <geeksaga@gmail.com>"
+FROM alpine:latest
+
+LABEL com.geeksaga.maintainer="GeekSaga" \
+      com.geeksaga.version="0.1.0"
 
 ENV \
     UID="1000" \
@@ -9,10 +14,17 @@ ENV \
     GNAME="neovim" \
     SHELL="/bin/zsh" \
     WORKSPACE="/data" \
-	  NVIM_CONFIG="/home/neovim/.config/nvim" \
+    NVIM_CONFIG="/home/neovim/.config/nvim" \
     PATH="/home/neovim/.local/bin:${PATH}"
 
-# Install dependencies
+ARG SERVICE_USER
+ARG SERVICE_HOME
+
+ENV SERVICE_USER ${SERVICE_USER:-${UNAME}}
+ENV SERVICE_HOME ${SERVICE_HOME:-/home/${SERVICE_USER}}
+
+# install dependencies
+# https://github.com/Yelp/dumb-init
 RUN apk add --no-cache \
   bash \
   zsh \
@@ -28,23 +40,22 @@ RUN apk add --no-cache \
   yarn \  
   ctags \
   unzip \
+# dumb-init \
   && rm -rf /var/cache/apk/*
   #&& apk del build-dependencies
 
 WORKDIR /tmp
 
-RUN addgroup "${GNAME}"
-RUN adduser -D -G "${GNAME}" -g "" -s "${SHELL}" "${UNAME}"
-RUN echo "${UNAME} ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
-RUN chgrp -R users .
+# adduser -h ${SERVICE_HOME} -s /sbin/nologin -u 1000 -D ${SERVICE_USER} && \
 
-USER "${UNAME}"
+RUN addgroup "${GNAME}" && \
+    adduser -h ${SERVICE_HOME} -D -G "${GNAME}" -g "" -s "${SHELL}" "${SERVICE_USER}" && \
+    echo "${SERVICE_USER} ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers && \
+    chgrp -R users .
 
-#install dotfiles
-#RUN git -C "/home/${UNAME}" clone --depth 1 https://github.com/geeksaga/dotfiles.git ~/#.dotfiles \
-# && cd ~/.dotfiles/ \
-# && ./install.sh
+USER    ${SERVICE_USER}
 
+# install dotfiles
 RUN sh -c "$(curl -fsSL https://raw.githubusercontent.com/geeksaga/dotfiles/master/install.sh)"
 
 # install oh-my-zsh
@@ -56,8 +67,6 @@ RUN git clone --depth 1 https://github.com/junegunn/fzf.git ~/.fzf && ~/.fzf/ins
 # install vim-plug
 RUN curl -fLo ~/.local/share/nvim/site/autoload/plug.vim --create-dirs https://raw.githubusercontent.com/junegunn/vim-plug/master/plug.vim
 
-# copy init.vim into container
-#COPY --chown="${UNAME}":"${GNAME}" init.vim /home/"${UNAME}"/.config/nvim/init.vim
 #COPY --chown="${UNAME}":"${GNAME}" pep8 /home/"${UNAME}"/.config/pep8
 
 # install all plugins
@@ -66,5 +75,8 @@ RUN nvim +PlugInstall +qa
 ENV TERM xterm
 
 WORKDIR ${WORKSPACE}
+# VOLUME  ${SERVICE_HOME}
 
 CMD /usr/bin/nvim 
+
+# ENTRYPOINT [ "/usr/bin/dumb-init", "--", "nvim" ]
