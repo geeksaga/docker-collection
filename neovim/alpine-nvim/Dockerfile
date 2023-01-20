@@ -23,6 +23,8 @@ ARG SERVICE_HOME
 ENV SERVICE_USER ${SERVICE_USER:-${UNAME}}
 ENV SERVICE_HOME ${SERVICE_HOME:-/home/${SERVICE_USER}}
 
+WORKDIR /tmp
+
 # install dependencies
 # https://github.com/Yelp/dumb-init
 RUN apk add --no-cache \
@@ -34,17 +36,21 @@ RUN apk add --no-cache \
   curl \
   python3-dev \
   clang \
+  musl-dev \
   go \
   nodejs \
   npm \
   yarn \  
-  ctags \
+# ctags \
   unzip \
 # dumb-init \
   && rm -rf /var/cache/apk/*
   #&& apk del build-dependencies
 
-WORKDIR /tmp
+ENV GOPATH /go
+ENV PATH $GOPATH/bin:/usr/local/go/bin:$PATH
+
+RUN mkdir -p "$GOPATH/src" "$GOPATH/bin" && chmod -R 777 "$GOPATH"
 
 # adduser -h ${SERVICE_HOME} -s /sbin/nologin -u 1000 -D ${SERVICE_USER} && \
 
@@ -54,6 +60,8 @@ RUN addgroup "${GNAME}" && \
     chgrp -R users .
 
 USER    ${SERVICE_USER}
+
+RUN GO111MODULE=on go get golang.org/x/tools/gopls@latest
 
 # install dotfiles
 RUN sh -c "$(curl -fsSL https://raw.githubusercontent.com/geeksaga/dotfiles/master/install.sh)"
